@@ -1,64 +1,76 @@
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <M5Stack.h>
 #include <M5UnitENV.h>
 
 SCD4X scd4x;
+JsonDocument doc;
 
-void setup()
-{
+uint16_t CO2_PPM;
+float TEMPERATURE_C;
+float HUMIDITY_PERCENT;
+
+void setup() {
+  doc["sensor"] = "container_rh";
+  Serial.begin(115200);
+
   M5.begin();
   M5.Power.begin();
-  M5.Lcd.fillScreen(WHITE);
-  M5.Lcd.setTextWrap(true, true);
+  M5.Lcd.fillScreen(BLACK);
+  M5.Lcd.setTextSize(7);
 
-  if (!scd4x.begin(&Wire, SCD4X_I2C_ADDR, 32, 33, 400000U))
-  {
-    M5.Lcd.print("Couldn't find sensor");
-    while (1)
-      delay(1);
+  if (!scd4x.begin(&Wire, SCD4X_I2C_ADDR, 21, 22, 400000U)) {
+    Serial.println("Couldn't find SCD4X");
+    while (1) delay(1);
   }
 
   uint16_t error;
   // stop potentially previously started measurement
   error = scd4x.stopPeriodicMeasurement();
-  if (error)
-  {
-    M5.Lcd.print("Error trying to execute stopPeriodicMeasurement(): ");
+  if (error) {
+    Serial.print("Error trying to execute stopPeriodicMeasurement(): ");
   }
 
   // Start Measurement
   error = scd4x.startPeriodicMeasurement();
-  if (error)
-  {
-    M5.Lcd.print("Error trying to execute startPeriodicMeasurement(): ");
+  if (error) {
+    Serial.print("Error trying to execute startPeriodicMeasurement(): ");
   }
 
-  M5.Lcd.print("Waiting for first measurement... (5 sec)");
+  Serial.println("Waiting for first measurement... (5 sec)");
 }
 
-void loop()
-{
+void loop() {
+  if (scd4x.update()) {
+    CO2_PPM = scd4x.getCO2();
+    TEMPERATURE_C = scd4x.getTemperature();
+    HUMIDITY_PERCENT = scd4x.getHumidity();
 
-  if (scd4x.update()) // readMeasurement will return true when
-                      // fresh data is available
-  {
-    M5.Lcd.clear(WHITE);
-    M5.Lcd.setCursor(0,0);
+    doc["co2_ppm"] = CO2_PPM;
+    doc["temperature_c"] = TEMPERATURE_C;
+    doc["humidity_percent"] = HUMIDITY_PERCENT;
 
-    M5.Lcd.print("CO2(ppm):");
-    M5.Lcd.print(scd4x.getCO2());
+    serializeJson(doc, Serial);
 
-    M5.Lcd.print("\tTemperature(C):");
-    M5.Lcd.print(scd4x.getTemperature(), 1);
-
-    M5.Lcd.print("\tHumidity(%RH):");
-    M5.Lcd.print(scd4x.getHumidity(), 1);
-
+    M5.Lcd.fillScreen(BLACK);
     M5.Lcd.println();
-  }
-  else
-  {
-    M5.Lcd.print(".");
+
+
+    M5.Lcd.setTextSize(5);
+    M5.Lcd.println(F("T(C):"));
+    M5.Lcd.setTextSize(7);
+    M5.Lcd.println(TEMPERATURE_C, 1);
+
+    M5.Lcd.setTextSize(5);
+    M5.Lcd.println(F("RH%:"));
+    M5.Lcd.setTextSize(7);
+    M5.Lcd.println(HUMIDITY_PERCENT, 1);
+    M5.Lcd.setCursor(0, 0);
+
+    Serial.println();
+  } else {
+    M5.Lcd.setTextSize(5);
+    M5.Lcd.print(F("."));
   }
 
   delay(1000);
