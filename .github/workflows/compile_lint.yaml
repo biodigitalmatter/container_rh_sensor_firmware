@@ -1,0 +1,12 @@
+on: [push, pull_request]
+jobs:
+  compile_lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+      - name: Compile sketch
+        run: arduino-cli compile
+      - name: Lint sketch
+        uses: arduino/arduino-lint-action@v2        
