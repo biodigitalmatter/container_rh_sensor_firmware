@@ -3,7 +3,7 @@ Description=Socat Service forwarding RH using port %i
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/socat tcp-l:54321,reuseaddr,fork file:/dev/serial/by-id/usb-1a86_USB_Single_Serial_54FC007261-if00,nonblock,waitlock=/var/run/usb-1a86_USB_Single_Serial_54FC007261-if00.lock
+ExecStart=/usr/bin/socat tcp-l:%i,reuseaddr,fork file:/dev/serial/by-id/usb-1a86_USB_Single_Serial_54FC007261-if00,nonblock,waitlock=/var/run/usb-1a86_USB_Single_Serial_54FC007261-if00.lock
 Restart=always
 User=nobody
 Group=nogroup
