@@ -9,5 +9,6 @@ profiles:
       - M5Stack (0.4.6)
       - M5Unit-ENV (1.0.1) # 1.1.1 raises a compilation error
       - ArduinoJson (7.2.1)
+      - ArduinoMqttClient (0.1.8)
 
 default_profile: m5stack
