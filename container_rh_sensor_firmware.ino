@@ -117,6 +117,8 @@ void loop() {
 
     String ip;
 
+    Serial.println("WiFi status: " + String(WiFi.status()));
+
     if (WiFi.status() == WL_CONNECTED) {
       ip = String(WiFi.localIP());
 
@@ -127,6 +129,7 @@ void loop() {
       ip = "Not connected";
     }
 
+    Serial.println("IP: " + ip);
     displayReading("IP:", ip);
 
     M5.Lcd.setCursor(0, 0);
