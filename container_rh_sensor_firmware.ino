@@ -41,28 +41,21 @@ void initWiFi(const char *hostname, const char *ssid, const char *pwd, const uin
   Serial.println("Failed to connect. Continuing.");
 }
 
-bool ensureConnectedMQTT(const char *broker_url, const uint16_t broker_port, const uint8_t conn_tries = 5, const uint16_t conn_delay = 1000) {
-  for (int i = 0; i < conn_tries; i++) {
-    Serial.print("MQTT connection try ");
-    Serial.println(i);
-
-    if (mqttClient.connect(broker_url, broker_port)) {
-      Serial.println("MQTT connected!");
-      return true;
-    } else {
-      Serial.print("MQTT connection failed! Error code = ");
-      Serial.println(mqttClient.connectError());
-    }
-    delay(conn_delay);
+bool connectMQTT(MqttClient &client, const char *broker_url, const uint16_t broker_port) {
+  if (client.connect(broker_url, broker_port)) {
+    Serial.println("MQTT connected!");
+    return true;
+  } else {
+    Serial.print("MQTT connection failed! Error code = ");
+    Serial.println(client.connectError());
+    return false;
   }
-  Serial.println("MQTT connection timed out!");
-  return false;
 }
 
-void initMQTT(const char *broker_url, const uint16_t broker_port, const char *username, const char *password) {
-  mqttClient.setUsernamePassword(username, password);
+void initMQTT(MqttClient &client, const char *broker_url, const uint16_t broker_port, const char *username, const char *password) {
+  client.setUsernamePassword(username, password);
 
-  ensureConnectedMQTT(broker_url, broker_port);
+  connectMQTT(client, broker_url, broker_port);
 }
 
 void displayReading(const char *desc, const String &val) {
@@ -116,8 +109,15 @@ void setup() {
   initWiFi(WIFI_HOSTNAME, WIFI_SSID, WIFI_PASSWORD, WIFI_CONN_TRIES);
 
   if (WiFi.status() == WL_CONNECTED) {
-    initMQTT(MQTT_BROKER_URL, MQTT_BROKER_PORT, MQTT_BROKER_USERNAME, MQTT_BROKER_PASSWORD);
+    initMQTT(mqttClient, MQTT_BROKER_URL, MQTT_BROKER_PORT, MQTT_BROKER_USERNAME, MQTT_BROKER_PASSWORD);
   }
+}
+
+void sendJsonToMQTT(MqttClient &client, const char *topic, JsonDocument &doc) {
+  client.beginMessage(topic, (unsigned long)measureJson(doc));
+  serializeJson(doc, client);
+  client.endMessage();
+  Serial.println("Sent MQTT message!");
 }
 
 void loop() {
@@ -143,11 +143,8 @@ void loop() {
       displayReading("IP:", WiFi.localIP().toString());
       Serial.println("WiFi (still) connected!");
 
-      if (ensureConnectedMQTT(MQTT_BROKER_URL, MQTT_BROKER_PORT)) {
-        mqttClient.beginMessage(MQTT_TOPIC, (unsigned long)measureJson(doc));
-        serializeJson(doc, mqttClient);
-        mqttClient.endMessage();
-        Serial.println("Sent MQTT message!");
+      if (connectMQTT(mqttClient, MQTT_BROKER_URL, MQTT_BROKER_PORT)) {
+        sendJsonToMQTT(mqttClient, MQTT_TOPIC, doc);
       }
     } else {
       displayReading("IP:", "Not connected");
