@@ -6,6 +6,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Arduino CLI
         uses: arduino/setup-arduino-cli@v2
+      - run: "test -f secrets.example.h && cp secrets.example.h secrets.h"
       - name: Compile sketch
         run: arduino-cli compile
       - name: Lint sketch
