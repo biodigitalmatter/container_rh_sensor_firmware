@@ -6,8 +6,8 @@
 #include <ArduinoMqttClient.h>
 #include "secrets.h"
 
-const uint16_t WIFI_CONN_TRIES = 8;
-const char *WIFI_HOSTNAME = "container_co2_sensor";
+const char *DEVICE_NAME = "m5_co2_1";
+const uint8_t WIFI_CONN_TRIES = 3;
 const char *MQTT_TOPIC = "iot/container/climate";
 
 WiFiClient wifiClient;
@@ -52,19 +52,6 @@ bool connectMQTT(MqttClient &client, const char *broker_url, const uint16_t brok
   }
 }
 
-void initMQTT(MqttClient &client, const char *broker_url, const uint16_t broker_port, const char *username, const char *password) {
-  client.setUsernamePassword(username, password);
-
-  connectMQTT(client, broker_url, broker_port);
-}
-
-void displayReading(const char *desc, const String &val) {
-  M5.Lcd.setTextSize(5);
-  M5.Lcd.println(desc);
-  M5.Lcd.setTextSize(7);
-  M5.Lcd.println(val);
-}
-
 void initSensor() {
   if (!scd4x.begin(&Wire, SCD4X_I2C_ADDR, 21, 22, 400000U)) {
     Serial.println("Couldn't find SCD4X");
@@ -102,15 +89,25 @@ void initM5() {
 void setup() {
   Serial.begin(115200);
 
-  doc["sensor"] = "container_rh";
+  doc["sensor"] = DEVICE_NAME;
 
   initM5();
   initSensor();
-  initWiFi(WIFI_HOSTNAME, WIFI_SSID, WIFI_PASSWORD, WIFI_CONN_TRIES);
+  initWiFi(DEVICE_NAME, WIFI_SSID, WIFI_PASSWORD, WIFI_CONN_TRIES);
+
+  mqttClient.setUsernamePassword(MQTT_BROKER_USERNAME, MQTT_BROKER_PASSWORD);
+  mqttClient.setId(DEVICE_NAME);
 
   if (WiFi.status() == WL_CONNECTED) {
-    initMQTT(mqttClient, MQTT_BROKER_URL, MQTT_BROKER_PORT, MQTT_BROKER_USERNAME, MQTT_BROKER_PASSWORD);
+    connectMQTT(mqttClient, MQTT_BROKER_URL, MQTT_BROKER_PORT);
   }
+}
+
+void displayReading(const char *desc, const String &val) {
+  M5.Lcd.setTextSize(5);
+  M5.Lcd.println(desc);
+  M5.Lcd.setTextSize(7);
+  M5.Lcd.println(val);
 }
 
 void sendJsonToMQTT(MqttClient &client, const char *topic, JsonDocument &doc) {
@@ -131,7 +128,7 @@ void loop() {
     doc["temperature_c"] = temperature_c;
     doc["humidity_percent"] = humidity_percent;
 
-    serializeJson(doc, Serial);
+    serializeJsonPretty(doc, Serial);
     Serial.println();
 
     resetLcdScreen();
@@ -142,10 +139,7 @@ void loop() {
     if (WiFi.status() == WL_CONNECTED) {
       displayReading("IP:", WiFi.localIP().toString());
       Serial.println("WiFi (still) connected!");
-
-      if (connectMQTT(mqttClient, MQTT_BROKER_URL, MQTT_BROKER_PORT)) {
-        sendJsonToMQTT(mqttClient, MQTT_TOPIC, doc);
-      }
+      sendJsonToMQTT(mqttClient, MQTT_TOPIC, doc);
     } else {
       displayReading("IP:", "Not connected");
       Serial.println("Not connected.");
