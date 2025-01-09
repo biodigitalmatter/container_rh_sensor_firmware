@@ -20,7 +20,7 @@ uint16_t CO2_PPM;
 float TEMPERATURE_C;
 float HUMIDITY_PERCENT;
 
-bool initWiFi(const char* hostname, const char* ssid, const char* pwd, const uint8_t conn_tries = 5) {
+void initWiFi(const char* hostname, const char* ssid, const char* pwd, const uint8_t conn_tries = 5) {
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(hostname);
   WiFi.begin(ssid, pwd);
@@ -34,12 +34,11 @@ bool initWiFi(const char* hostname, const char* ssid, const char* pwd, const uin
     if (WiFi.status() == WL_CONNECTED) {
       Serial.print("Connected with IP: ");
       Serial.println(WiFi.localIP());
-      return true;
+      return;
     }
     delay(1000);
   }
   Serial.println("Failed to connect. Continuing.");
-  return false;
 }
 
 void initMQTT(const char* broker_url, const uint16_t broker_port, const char* username, const char* password) {
@@ -77,8 +76,10 @@ void setup() {
   }
 
   initWiFi(WIFI_HOSTNAME, WIFI_SSID, WIFI_PASSWORD, WIFI_CONN_TRIES);
-  initMQTT(MQTT_BROKER_URL, MQTT_BROKER_PORT, MQTT_BROKER_USERNAME, MQTT_BROKER_PASSWORD);
-
+  if (WiFi.status() == WL_CONNECTED) {
+    initMQTT(MQTT_BROKER_URL, MQTT_BROKER_PORT, MQTT_BROKER_USERNAME, MQTT_BROKER_PASSWORD);
+  }
+  
   uint16_t error;
   // stop potentially previously started measurement
   error = scd4x.stopPeriodicMeasurement();
