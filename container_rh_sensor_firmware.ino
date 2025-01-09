@@ -75,10 +75,6 @@ void setup() {
       delay(1);
   }
 
-  initWiFi(WIFI_HOSTNAME, WIFI_SSID, WIFI_PASSWORD, WIFI_CONN_TRIES);
-  if (WiFi.status() == WL_CONNECTED) {
-    initMQTT(MQTT_BROKER_URL, MQTT_BROKER_PORT, MQTT_BROKER_USERNAME, MQTT_BROKER_PASSWORD);
-  }
 
   uint16_t error;
   // stop potentially previously started measurement
@@ -94,6 +90,11 @@ void setup() {
   }
 
   Serial.println("Waiting for first measurement... (5 sec)");
+
+  initWiFi(WIFI_HOSTNAME, WIFI_SSID, WIFI_PASSWORD, WIFI_CONN_TRIES);
+  if (WiFi.status() == WL_CONNECTED) {
+    initMQTT(MQTT_BROKER_URL, MQTT_BROKER_PORT, MQTT_BROKER_USERNAME, MQTT_BROKER_PASSWORD);
+  }
 }
 
 void loop() {
