@@ -97,6 +97,7 @@ void setup() {
 }
 
 void loop() {
+  mqttClient.poll(); // keep the mqtt client alive
   if (scd4x.update()) {
     CO2_PPM = scd4x.getCO2();
     TEMPERATURE_C = scd4x.getTemperature();
