@@ -6,6 +6,8 @@
 #include <ArduinoMqttClient.h>
 #include "secrets.h"
 
+#define MQTT_REQUIRED // Retry wifi and mqtt connection until connected
+
 const char *DEVICE_NAME = "m5_co2_1";
 const uint8_t WIFI_CONN_TRIES = 3;
 const char *MQTT_TOPIC = "iot/container/climate";
@@ -27,9 +29,16 @@ void initWiFi(const char *hostname, const char *ssid, const char *pwd, const uin
   Serial.print("Connecting to WiFi using ");
   Serial.print(conn_tries);
   Serial.println(" tries");
-  for (int i = 0; i < conn_tries; i++) {
+
+  uint8_t i = 0;
+
+#ifdef MQTT_REQUIRED
+  while (true) {
+#else
+  for (i = 0; i < conn_tries; i++) {
+#endif
     Serial.print("Connecting try ");
-    Serial.println(i);
+    Serial.println(i + 1);
 
     if (WiFi.status() == WL_CONNECTED) {
       Serial.print("Connected with IP: ");
@@ -41,15 +50,36 @@ void initWiFi(const char *hostname, const char *ssid, const char *pwd, const uin
   Serial.println("Failed to connect. Continuing.");
 }
 
-bool connectMQTT(MqttClient &client, const char *broker_url, const uint16_t broker_port) {
-  if (client.connect(broker_url, broker_port)) {
-    Serial.println("MQTT connected!");
-    return true;
-  } else {
-    Serial.print("MQTT connection failed! Error code = ");
-    Serial.println(client.connectError());
-    return false;
+bool connectMQTT(MqttClient &client, const char *broker_url, const uint16_t broker_port, const uint8_t conn_tries = 5) {
+  Serial.print("Connecting to MQTT broker using ");
+#ifdef MQTT_REQUIRED
+  Serial.println("infinite tries");
+#else
+  Serial.print(conn_tries);
+  Serial.println(" tries");
+#endif
+
+  uint8_t i = 0;
+
+#ifdef MQTT_REQUIRED
+  while (true) {
+#else
+  for (i = 0; i < conn_tries; i++) {
+#endif
+    Serial.print("Connecting try ");
+    Serial.println(i + 1);
+
+    if (client.connect(broker_url, broker_port)) {
+      Serial.println("MQTT connected!");
+      return true;
+    } else {
+      Serial.print("MQTT connection failed! Error code = ");
+      Serial.println(client.connectError());
+    }
+    delay(1000);
   }
+  Serial.println("Failed to connect to MQTT broker. Continuing.");
+  return false;
 }
 
 void initSensor() {
