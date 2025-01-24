@@ -105,8 +105,8 @@ void setup() {
 
 void displayReading(const char *desc, const String &val) {
   M5.Lcd.setTextSize(5);
-  M5.Lcd.println(desc);
-  M5.Lcd.setTextSize(7);
+  M5.Lcd.print(desc);
+  M5.Lcd.print(": ");
   M5.Lcd.println(val);
 }
 
@@ -133,15 +133,15 @@ void loop() {
 
     resetLcdScreen();
 
-    displayReading("T(C):", String(temperature_c));
-    displayReading("RH%:", String(humidity_percent));
+    displayReading("T(C)", String(temperature_c));
+    displayReading("RH%", String(humidity_percent));
 
     if (WiFi.status() == WL_CONNECTED) {
-      displayReading("IP:", WiFi.localIP().toString());
+      displayReading("IP", WiFi.localIP().toString());
       Serial.println("WiFi (still) connected!");
       sendJsonToMQTT(mqttClient, MQTT_TOPIC, doc);
     } else {
-      displayReading("IP:", "Not connected");
+      displayReading("IP", "Not connected");
       Serial.println("Not connected.");
     }
   }
