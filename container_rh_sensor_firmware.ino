@@ -10,7 +10,11 @@
 
 const char *DEVICE_NAME = "m5_co2_1";
 const uint8_t WIFI_CONN_TRIES = 3;
-const char *MQTT_TOPIC = "iot/container/climate";
+const char *MQTT_TOPIC = "iot/container/climate/state";
+
+const char *MQTT_AVAILABILITY_TOPIC = "iot/container/climate/availability";
+const char *MQTT_AVAILABLE = "online";
+const char *MQTT_NOT_AVAILABLE = "offline";
 
 WiFiClient wifiClient;
 MqttClient mqttClient(wifiClient);
@@ -71,6 +75,15 @@ bool connectMQTT(MqttClient &client, const char *broker_url, const uint16_t brok
 
     if (client.connect(broker_url, broker_port)) {
       Serial.println("MQTT connected!");
+
+      mqttClient.beginWill(MQTT_AVAILABILITY_TOPIC, strlen(MQTT_NOT_AVAILABLE), true, 1);
+      mqttClient.print(MQTT_NOT_AVAILABLE);
+      mqttClient.endWill();
+
+      client.beginMessage(MQTT_AVAILABILITY_TOPIC, true, 1);
+      client.print(MQTT_AVAILABLE);
+      client.endMessage();
+
       return true;
     } else {
       Serial.print("MQTT connection failed! Error code = ");
