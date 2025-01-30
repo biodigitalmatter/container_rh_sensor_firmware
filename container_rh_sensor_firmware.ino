@@ -75,7 +75,8 @@ void sendJsonToMQTT(const String topic, JsonDocument &doc) {
   mqttClient.beginMessage(topic, (unsigned long)measureJson(doc));
   serializeJson(doc, mqttClient);
   mqttClient.endMessage();
-  Serial.println("Sent MQTT message!");
+  Serial.println("Sent following payload to: " + topic);
+  serializeJsonPretty(doc, Serial);
 }
 void sendConfigToMQTT() {
   JsonDocument doc;
