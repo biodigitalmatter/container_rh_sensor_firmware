@@ -1,20 +1,26 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <ArduinoMqttClient.h>
 #include <M5Stack.h>
 #include <M5UnitENV.h>
 #include <WiFi.h>
-#include <ArduinoMqttClient.h>
 #include "secrets.h"
 
-#define MQTT_REQUIRED // Retry wifi and mqtt connection until connected
+#define MQTT_REQUIRED  // Retry wifi and mqtt connection until connected
+
+struct SensorData {
+  uint16_t co2_ppm;
+  float temperature_c;
+  float humidity_percent;
+};
 
 const char *DEVICE_NAME = "m5_co2_1";
 const uint8_t WIFI_CONN_TRIES = 3;
-const char *MQTT_TOPIC = "iot/container/climate/state";
 
-const char *MQTT_AVAILABILITY_TOPIC = "iot/container/climate/availability";
-const char *MQTT_AVAILABLE = "online";
-const char *MQTT_NOT_AVAILABLE = "offline";
+const String MQTT_TOPIC_ROOT = "iot/device/m5co2";
+const String MQTT_TOPIC_CONF = MQTT_TOPIC_ROOT + "/config";
+const String MQTT_TOPIC_AVAIL = MQTT_TOPIC_ROOT + "/available";
+const String MQTT_TOPIC_STATE = MQTT_TOPIC_ROOT + "/state";
 
 WiFiClient wifiClient;
 MqttClient mqttClient(wifiClient);
@@ -22,11 +28,8 @@ MqttClient mqttClient(wifiClient);
 SCD4X scd4x;
 JsonDocument doc;
 
-uint16_t co2_ppm;
-float temperature_c;
-float humidity_percent;
-
-void initWiFi(const char *hostname, const char *ssid, const char *pwd, const uint8_t conn_tries = 5) {
+void initWiFi(const char *hostname, const char *ssid, const char *pwd,
+              const uint8_t conn_tries = 5) {
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(hostname);
   WiFi.begin(ssid, pwd);
@@ -54,7 +57,60 @@ void initWiFi(const char *hostname, const char *ssid, const char *pwd, const uin
   Serial.println("Failed to connect. Continuing.");
 }
 
-bool connectMQTT(MqttClient &client, const char *broker_url, const uint16_t broker_port, const uint8_t conn_tries = 5) {
+void sendAvailabilityToMQTT() {
+
+  const char *MQTT_AVAILABLE = "online";
+  const char *MQTT_NOT_AVAILABLE = "offline";
+
+  mqttClient.beginWill(MQTT_TOPIC_AVAIL, strlen(MQTT_NOT_AVAILABLE), true, 1);
+  mqttClient.print(MQTT_NOT_AVAILABLE);
+  mqttClient.endWill();
+
+  mqttClient.beginMessage(MQTT_TOPIC_AVAIL, strlen(MQTT_AVAILABLE), true, 1);
+  mqttClient.print(MQTT_AVAILABLE);
+  mqttClient.endMessage();
+}
+
+void sendJsonToMQTT(const String topic, JsonDocument &doc) {
+  mqttClient.beginMessage(topic, (unsigned long)measureJson(doc));
+  serializeJson(doc, mqttClient);
+  mqttClient.endMessage();
+  Serial.println("Sent MQTT message!");
+}
+void sendConfigToMQTT() {
+  JsonDocument doc;
+
+  doc["dev"]["ids"] = "m5co2_1";
+  doc["dev"]["name"] = "Container M5 climate sensor";
+  doc["o"]["name"] = "m5co2";
+  doc["o"]["url"] = "https://github.com/biodigitalmatter/container_rh_sensor_firmware";
+  doc["state_topic"] = MQTT_TOPIC_STATE;
+  doc["avty_t"] = MQTT_TOPIC_AVAIL;
+
+  doc["cmps"]["CO2"]["p"] = "sensor";
+  doc["cmps"]["CO2"]["device_class"] = "carbon_dioxide";
+  doc["cmps"]["CO2"]["unit_of_meas"] = "ppm";
+  doc["cmps"]["CO2"]["value_template"] = "{{ value_json.co2_ppm }}";
+  doc["cmps"]["CO2"]["uniq_id"] = "m5co2c_c";
+
+  doc["cmps"]["temperature"]["uniq_id"] = "m5co2c_t";
+  doc["cmps"]["temperature"]["p"] = "sensor";
+  doc["cmps"]["temperature"]["device_class"] = "temperature";
+  doc["cmps"]["temperature"]["unit_of_meas"] = "°C";
+  doc["cmps"]["temperature"]["value_template"] = "{{ value_json.temperature_c }}";
+  doc["cmps"]["temperature"]["uniq_id"] = "m5co2c_t";
+
+  doc["cmps"]["humidity"]["p"] = "sensor";
+  doc["cmps"]["humidity"]["device_cla"] = "humidity";
+  doc["cmps"]["humidity"]["unit_of_meas"] = "%";
+  doc["cmps"]["humidity"]["value_template"] = "{{ value_json.humidity_percent }}";
+  doc["cmps"]["humidity"]["uniq_id"] = "m5co2c_h";
+
+  sendJsonToMQTT(MQTT_TOPIC_CONF, doc);
+}
+
+bool connectMQTT(const char *broker_url, const uint16_t broker_port,
+                 const uint8_t conn_tries = 5) {
   Serial.print("Connecting to MQTT broker using ");
 #ifdef MQTT_REQUIRED
   Serial.println("infinite tries");
@@ -73,21 +129,14 @@ bool connectMQTT(MqttClient &client, const char *broker_url, const uint16_t brok
     Serial.print("Connecting try ");
     Serial.println(i + 1);
 
-    if (client.connect(broker_url, broker_port)) {
+    if (mqttClient.connect(broker_url, broker_port)) {
+      sendAvailabilityToMQTT();
+      sendConfigToMQTT();
       Serial.println("MQTT connected!");
-
-      mqttClient.beginWill(MQTT_AVAILABILITY_TOPIC, strlen(MQTT_NOT_AVAILABLE), true, 1);
-      mqttClient.print(MQTT_NOT_AVAILABLE);
-      mqttClient.endWill();
-
-      client.beginMessage(MQTT_AVAILABILITY_TOPIC, true, 1);
-      client.print(MQTT_AVAILABLE);
-      client.endMessage();
-
       return true;
     } else {
       Serial.print("MQTT connection failed! Error code = ");
-      Serial.println(client.connectError());
+      Serial.println(mqttClient.connectError());
     }
     delay(1000);
   }
@@ -142,7 +191,7 @@ void setup() {
   mqttClient.setId(DEVICE_NAME);
 
   if (WiFi.status() == WL_CONNECTED) {
-    connectMQTT(mqttClient, MQTT_BROKER_URL, MQTT_BROKER_PORT);
+    connectMQTT(MQTT_BROKER_URL, MQTT_BROKER_PORT);
   }
 }
 
@@ -153,36 +202,47 @@ void displayReading(const char *desc, const String &val) {
   M5.Lcd.println(val);
 }
 
-void sendJsonToMQTT(MqttClient &client, const char *topic, JsonDocument &doc) {
-  client.beginMessage(topic, (unsigned long)measureJson(doc));
-  serializeJson(doc, client);
-  client.endMessage();
-  Serial.println("Sent MQTT message!");
+void plotReadings(const SensorData &data) {
+  Serial.print("co2_ppm:");
+  Serial.print(data.co2_ppm);
+  Serial.print(",");
+  Serial.print("temperature_c:");
+  Serial.print(data.temperature_c);
+  Serial.print(",");
+  Serial.print("humidity_percent:");
+  Serial.print(data.humidity_percent);
+  Serial.println();
 }
+
+void sendReadingsToMQTT(const SensorData &data) {
+  JsonDocument doc;
+
+  doc["co2_ppm"] = data.co2_ppm;
+  doc["temperature_c"] = data.temperature_c;
+  doc["humidity_percent"] = data.humidity_percent;
+
+  sendJsonToMQTT(MQTT_TOPIC_STATE, doc);
+};
 
 void loop() {
   mqttClient.poll();  // keep the mqtt client alive
   if (scd4x.update()) {
-    co2_ppm = scd4x.getCO2();
-    temperature_c = scd4x.getTemperature();
-    humidity_percent = scd4x.getHumidity();
+    SensorData data;
+    data.co2_ppm = scd4x.getCO2();
+    data.temperature_c = scd4x.getTemperature();
+    data.humidity_percent = scd4x.getHumidity();
 
-    doc["co2_ppm"] = co2_ppm;
-    doc["temperature_c"] = temperature_c;
-    doc["humidity_percent"] = humidity_percent;
-
-    serializeJsonPretty(doc, Serial);
-    Serial.println();
+    plotReadings(data);
 
     resetLcdScreen();
 
-    displayReading("T(C)", String(temperature_c));
-    displayReading("RH%", String(humidity_percent));
+    displayReading("T(C)", String(data.temperature_c));
+    displayReading("RH%", String(data.humidity_percent));
 
     if (WiFi.status() == WL_CONNECTED) {
       displayReading("IP", WiFi.localIP().toString());
       Serial.println("WiFi (still) connected!");
-      sendJsonToMQTT(mqttClient, MQTT_TOPIC, doc);
+      sendReadingsToMQTT(data);
     } else {
       displayReading("IP", "Not connected");
       Serial.println("Not connected.");
