@@ -99,12 +99,14 @@ void sendConfigToMQTT() {
   doc["cmps"]["temperature"]["p"] = "sensor";
   doc["cmps"]["temperature"]["device_class"] = "temperature";
   doc["cmps"]["temperature"]["unit_of_meas"] = "°C";
+  doc["cmps"]["temperature"]["suggested_display_precision"] = 1
   doc["cmps"]["temperature"]["value_template"] = "{{ value_json.temperature_c }}";
   doc["cmps"]["temperature"]["uniq_id"] = "m5co2c_t";
 
   doc["cmps"]["humidity"]["p"] = "sensor";
-  doc["cmps"]["humidity"]["device_cla"] = "humidity";
+  doc["cmps"]["humidity"]["device_class"] = "humidity";
   doc["cmps"]["humidity"]["unit_of_meas"] = "%";
+  doc["cmps"]["humidity"]["suggested_display_precision"] = 1
   doc["cmps"]["humidity"]["value_template"] = "{{ value_json.humidity_percent }}";
   doc["cmps"]["humidity"]["uniq_id"] = "m5co2c_h";
 
