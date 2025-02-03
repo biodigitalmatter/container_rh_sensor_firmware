@@ -58,7 +58,6 @@ void initWiFi(const char *hostname, const char *ssid, const char *pwd,
 }
 
 void sendAvailabilityToMQTT() {
-
   const char *MQTT_AVAILABLE = "online";
   const char *MQTT_NOT_AVAILABLE = "offline";
 
@@ -71,8 +70,8 @@ void sendAvailabilityToMQTT() {
   mqttClient.endMessage();
 }
 
-void sendJsonToMQTT(const String topic, JsonDocument &doc) {
-  mqttClient.beginMessage(topic, (unsigned long)measureJson(doc));
+void sendJsonToMQTT(const String topic, JsonDocument &doc, bool retain = false) {
+  mqttClient.beginMessage(topic, (unsigned long)measureJson(doc), retain);
   serializeJson(doc, mqttClient);
   mqttClient.endMessage();
   Serial.println("Sent following payload to: " + topic);
@@ -109,7 +108,7 @@ void sendConfigToMQTT() {
   doc["cmps"]["humidity"]["value_template"] = "{{ value_json.humidity_percent }}";
   doc["cmps"]["humidity"]["uniq_id"] = "m5co2c_h";
 
-  sendJsonToMQTT(MQTT_TOPIC_CONF, doc);
+  sendJsonToMQTT(MQTT_TOPIC_CONF, doc, true);
 }
 
 bool connectMQTT(const char *broker_url, const uint16_t broker_port,
